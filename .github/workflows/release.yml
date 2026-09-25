@@ -27,7 +27,7 @@ jobs:
       - uses: pnpm/setup@v1
         with:
           version: 11
-          runtime: node@22
+          runtime: node@24
           cache: true
 
       # Install dependencies
@@ -55,11 +55,6 @@ jobs:
           prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') || contains(github.ref, 'dev') }}
           token: ${{ secrets.GITHUB_TOKEN }}
           files: dist.zip
-
-      - name: Update npm
-        run: |
-          npm install -g npm@11.15.0
-          npm -v
 
       - name: publish on npm
         if: ${{ ! (contains(github.ref, 'beta') || contains(github.ref, 'alpha') || contains(github.ref, 'dev')) }}
