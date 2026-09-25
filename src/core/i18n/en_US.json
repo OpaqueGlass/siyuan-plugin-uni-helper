@@ -1,0 +1,18 @@
+{
+    "setting_search_placeholder": "Search settings",
+    "setting_search_empty": "No matching setting item",
+    "setting_column_none_name": "General",
+    "setting_experimental": "[Experimental]",
+    "setting_testing": "[Testing]",
+    "setting_deprecated": "[Deprecated]",
+    "option_modified": "(Modified)",
+    "default": "Default",
+    "select_path": "Select path",
+    "msg_not_select_path": "No file selected",
+    "only_available_in_client": "Only available in the desktop client",
+    "order_panel_enable": "Enabled",
+    "order_panel_disable": "Disabled",
+    "dialog_panel_outdate": "Outdated settings",
+    "dialog_panel_outdate_content1": "The following settings have been removed or renamed, their values are reset to default:",
+    "dialog_panel_outdate_content2": "If the related features behave unexpectedly, please set them again."
+}

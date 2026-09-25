@@ -1,0 +1,18 @@
+{
+    "setting_search_placeholder": "搜索设置项",
+    "setting_search_empty": "没有匹配的设置项",
+    "setting_column_none_name": "通用",
+    "setting_experimental": "【实验性功能】",
+    "setting_testing": "【测试功能】",
+    "setting_deprecated": "【已废弃】",
+    "option_modified": "（已修改）",
+    "default": "默认值",
+    "select_path": "选择路径",
+    "msg_not_select_path": "未选择文件路径",
+    "only_available_in_client": "此功能仅在桌面客户端中可用",
+    "order_panel_enable": "已启用",
+    "order_panel_disable": "未启用",
+    "dialog_panel_outdate": "过时设置项",
+    "dialog_panel_outdate_content1": "以下设置项已被移除或改名，其取值已恢复为默认值：",
+    "dialog_panel_outdate_content2": "如果你发现相关功能表现异常，请重新进行设置。"
+}
