@@ -2,7 +2,7 @@
     <div class="fn__flex-column" style="height: 100%;" v-if="!hide">
         <div class="layout-tab-bar fn__flex">
             <template v-for="(column, index) in props.columnKeys">
-                <div class="item item--full" v-show="isColumnVisible(column)" :class="{'item--focus': currentTab === column}" :data-type="column" @click="changeTab(column)">
+                <div class="item item--full" :class="{'item--focus': currentTab === column}" :data-type="column" @click="changeTab(column)">
                     <span class="fn__flex-1"></span>
                     <span>{{ props.columnNames[index] }}</span>
                     <span class="fn__flex-1"></span>

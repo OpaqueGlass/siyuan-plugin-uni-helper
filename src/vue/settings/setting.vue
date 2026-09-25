@@ -10,7 +10,7 @@
             </div>
             <ul class="config__tab-scroll">
                 <li v-for="(tab, index) in tabList" :key="index"
-                    v-show="isTabMatch(tab.key)"
+                    v-show="searchContext.isTabMatch(tab.key)"
                     :class="{ 'b3-list-item--focus': activeTab === tab.key, 'b3-list-item': true }" @click="changeTab(tab.key)">
                     <svg class="b3-list-item__graphic">
                         <use :xlink:href="'#' + tab.iconKey"></use>
@@ -28,13 +28,13 @@
                         <template v-for="(item, index) in items">
                             <!-- 设置项级自定义组件：整块 UI 由插件接管 -->
                             <component v-if="item.component" :is="item.component" :key="index"
-                                v-show="isItemMatch(item.key)"
+                                v-show="searchContext.isItemMatch(item.key)"
                                 v-bind="buildComponentProps(item)"
                                 :model-value="g_setting[item.key]"
                                 @update:model-value="updateValue(item.key, $event)">
                             </component>
                             <template v-else-if="isBlockType(item.type)">
-                                <Block :setting-key="item.key" v-show="isItemMatch(item.key)" :config-name="item.configName" :config-desp="item.description">
+                                <Block :setting-key="item.key" v-show="searchContext.isItemMatch(item.key)" :config-name="item.configName" :config-desp="item.description">
                                     <template v-if="item.type == 'TEXTAREA'">
                                         <Textarea v-model="g_setting[item.key]"></Textarea>
                                     </template>
@@ -45,7 +45,7 @@
                                 </Block>
                             </template>
                             <template v-else>
-                                <Item :key="index" v-show="isItemMatch(item.key)" :setting-key="item.key" :config-name="item.configName" :config-desp="item.description" :apply-value="g_setting[item.key]" :default-value="defaultSettings[item.key]">
+                                <Item :key="index" v-show="searchContext.isItemMatch(item.key)" :setting-key="item.key" :config-name="item.configName" :config-desp="item.description" :apply-value="g_setting[item.key]" :default-value="defaultSettings[item.key]">
                                     <!-- 控件级自定义组件：沿用 Item 的名称与描述布局，仅替换右侧控件 -->
                                     <component v-if="item.control" :is="item.control"
                                         v-bind="buildComponentProps(item)"
