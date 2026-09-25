@@ -8,9 +8,7 @@
   "keywords": [
     "siyuan",
     "siyuan-plugin",
-    "plugin",
-    "settings",
-    "vue"
+    "plugin"
   ],
   "files": [
     "src",
