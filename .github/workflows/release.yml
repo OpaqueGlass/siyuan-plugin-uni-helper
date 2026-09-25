@@ -17,12 +17,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      # Check version（越早失败越省时间）
+      - name: Check version
+        run: node ./scripts/check_version.js
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+
       # Install Node.js
       - uses: pnpm/setup@v1
         with:
           version: 11
           runtime: node@22
           cache: true
+
+      - name: Update npm
+        run: npm install -g npm@11.15.0
 
       # Install dependencies
       - name: Install dependencies
@@ -37,14 +46,11 @@ jobs:
         run: zip -r dist.zip dist/
 
       # Get changelog
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.8'
-
       - name: Get CHANGELOGS
-        run: python ./scripts/release_note.py
-      
+        run: node ./scripts/release_note.js
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
@@ -55,4 +61,4 @@ jobs:
 
       - name: publish on npm
         if: ${{ ! (contains(github.ref, 'beta') || contains(github.ref, 'alpha') || contains(github.ref, 'dev')) }}
-        run: npm publish --provenance
+        run: npm stage publish --provenance
