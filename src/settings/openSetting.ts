@@ -21,12 +21,11 @@ export function openSetting(openOptions: OpenSettingOptions = {}): void {
     const uid = generateUUID();
     const app = createApp(SettingPanel);
     new siyuan.Dialog({
-        "title": openOptions.title ?? lang("setting_panel_title"),
         "content": `
         <div id="${buildDomId("setting", uid)}" style="overflow: hidden; position: relative;height: 100%;"></div>
         `,
         "width": openOptions.width ?? (isMobile() ? "92vw" : "1040px"),
-        "height": openOptions.height ?? (isMobile() ? "50vw" : "80vh"),
+        "height": openOptions.height ?? "80vh",
         "destroyCallback": () => app.unmount(),
     });
     app.mount(`#${buildDomId("setting", uid)}`);

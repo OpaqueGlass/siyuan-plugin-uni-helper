@@ -1,9 +1,13 @@
 {
   "name": "siyuan-plugin-uni-helper",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "思源笔记插件通用工具包：设置面板框架、思源 API 封装、常用工具与内核版本守卫",
   "type": "module",
   "author": "OpaqueGlass",
+  "repository": {
+    "url": "git+https://github.com/OpaqueGlass/siyuan-plugin-uni-helper.git"
+  },
+  "homepage": "https://github.com/OpaqueGlass/siyuan-plugin-uni-helper",
   "license": "MIT",
   "keywords": [
     "siyuan",

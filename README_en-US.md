@@ -1,17 +1,15 @@
 # siyuan-plugin-uni-helper
 
-Shared toolkit for SiYuan (SiYuan Notes) plugins. It collects the code that every plugin repository used to copy around — **settings panel framework + SiYuan API wrappers + common utils + logger/i18n layer** — into a single npm package, so a plugin only needs to bump the dependency version to receive fixes and improvements.
+Shared toolkit for SiYuan (SiYuan Notes) plugins. Extracted from the [Hierarchy Navigate plugin](https://github.com/OpaqueGlass/syplugin-hierarchyNavigate/): **settings panel framework + SiYuan API wrappers + common utils + logger/i18n support**, so that other plugin can reuse it.
 
 Four capability blocks:
 
 | Module | Description |
 | --- | --- |
-| **Settings framework** (`siyuan-plugin-uni-helper/settings`) | Declarative setting registration (same setting-property style plugins already use), built-in search, three levels of custom Vue components (item / tab / control) |
-| **SiYuan API** (`siyuan-plugin-uni-helper/api`) | The whole `syapi` suite moved over as-is. Function shapes and return structures are unchanged, **no wrappers and no version annotations added** |
-| **Core layer** (`siyuan-plugin-uni-helper/core`) | `registerPlugin` / leveled logger / three-tier i18n fallback / `@SyVersion` version guard / mutex / version comparison, etc. |
-| **Settings UI** (`siyuan-plugin-uni-helper/vue`) | Panel and per-type controls (SFC). Usually you do not import these directly |
-
-Design stance: **the package never mutates or overrides the plugin instance.** When the settings panel opens is still decided by the plugin's own `openSetting()`; the package only provides the implementation for it to call explicitly. Storage file name and format are unchanged, so upgrading never loses a user's existing settings.
+| **Settings panel framework** (`siyuan-plugin-uni-helper/settings`) | Declarative setting registration, built-in search, three levels of custom Vue components (item / tab / control) |
+| **SiYuan API** (`siyuan-plugin-uni-helper/api`) | `syapi` is the API wrapper from the Hierarchy Navigate plugin; function shapes and return structures are unchanged |
+| **Core layer** (`siyuan-plugin-uni-helper/core`) | `registerPlugin` / leveled logger / three-tier i18n fallback / `@SyVersion` version check / mutex / version comparison, etc. |
+| **Settings panel UI** (`siyuan-plugin-uni-helper/vue`) | Panel and per-type controls (SFC). Usually you do not reference these directly |
 
 ---
 
@@ -26,10 +24,10 @@ npm i siyuan-plugin-uni-helper
 | --- | --- | --- |
 | `vue` | `^3.4.15` (peer) | SFCs are shipped as source, sharing the host's Vue instance |
 | `siyuan` | `^1.0.6` (peer + external) | Provided by the host |
-| `sortablejs` | `^1.15.2` (optional peer) | Only used by the `ORDER` drag-and-drop setting item |
+| `sortablejs` | `^1.15.2` (optional peer) | Only used by the `ORDER` drag-and-drop setting item; no need to install it otherwise |
 | Node | `^20.19.0 \|\| >=22.12.0` | Required by vite 6 |
 
-### Consumer project configuration (read this first)
+### Adding it to your plugin project
 
 The package is published **as source** (including `.vue` / `.json`), so the consumer's Vite must compile the bundled SFCs explicitly, otherwise you get `Failed to parse source`.
 
@@ -63,7 +61,7 @@ export default defineConfig({
 });
 ```
 
-Legacy decorators are required if you use the `@SyVersion` decorator form:
+Legacy decorators are required in `tsconfig.json` if you use the `@SyVersion` decorator form:
 
 ```json
 {
@@ -73,11 +71,11 @@ Legacy decorators are required if you use the `@SyVersion` decorator form:
 }
 ```
 
-> esbuild in vite 6 supports legacy decorators natively; no extra plugin is needed.
+> esbuild in vite 6 supports legacy decorators natively; `experimentalDecorators: true` needs no extra plugin configuration.
 
-### 1. Registering the plugin
+### 1. Registering the plugin with the helper
 
-Call it as early as possible inside `onload()`. It performs three things at once: storing the plugin instance, initializing the logger, and loading the language pack.
+Call `registerPlugin` inside `onload()`. It stores the plugin instance, initializes the logger, and loads the i18n config.
 
 ```ts
 // src/index.ts
@@ -102,18 +100,18 @@ export default class MyPlugin extends Plugin {
 }
 ```
 
-Every capability in the package looks the plugin up through `PluginContext` and **never imports plugin code back**. Using something that needs the instance before registration throws immediately from `usePluginContext()` so the mistake is easy to locate.
+Every capability in the package looks the plugin up through `PluginContext`. Using something that needs the instance before registration throws immediately from `usePluginContext()` so the mistake is easy to locate.
 
-### 2. The settings engine
+### 2. Plugin settings management
 
-The plugin side keeps only "business config + migration + validation hooks"; loading, persistence, type correction, debouncing and the debug switch are handled by the package:
+The plugin side only needs to provide the business-related setting configuration, version upgrade migration, and setting type validation. Loading, persistence, type correction, debouncing and the debug switch are all handled by the package:
 
 ```ts
 // src/manager/settingManager.ts
 import { createSettingManager } from "siyuan-plugin-uni-helper/settings";
 
 const manager = createSettingManager({
-    storageFile: "settings_main.json",   // default value; file name and format stay the same
+    storageFile: "settings_main.json",   // default value; storage file name and format stay the same
     defaultSetting: { /* plugin-specific defaults */ },
     currentVersion: 20260301,            // same meaning as the old @version
     tabs: () => tabProperties,           // array or lazy factory
@@ -133,17 +131,17 @@ export const getDefaultSettings = manager.getDefaultSettings;
 export const getTabProperties = manager.getTabProperties;
 ```
 
-One full load cycle:
+One full load cycle of the engine:
 
-1. `plugin.loadData(storageFile)`; if empty, try `transferOld()` then `defaultSetting`
+1. `plugin.loadData(storageFile)`; if the file is empty, try `transferOld()` then `defaultSetting`
 2. If `@version` is missing or lower than `currentVersion`, bump it and run `onVersionUpgrade()`
-3. `checkSettingType()`: correct values by declaration (`SELECT` out of range → default, missing `SWITCH` → default, `NUMBER` clamped to `min`/`max`, `0` in `zeroToMaxKeys` → `max`), then run the plugin's `customValidate()`
+3. `checkSettingType()`: correct values by the `ConfigProperty` declaration (`SELECT` out of range → default, missing `SWITCH` → default, `NUMBER` clamped to `min`/`max`, and `0` in `zeroToMaxKeys` → `max`), then run the plugin's `customValidate()`
 4. `Object.assign({}, defaultSetting, loadResult)` into the reactive object
 5. Register `watch(deep)`; after a **400 ms debounce** run `checkSettingType()` again → persist → sync debug switch → `onChanged()`
 6. Sync the debug switch and call `onChanged()` once immediately; persist right away if a version upgrade happened
-7. Any key in `outdatedWarnKeys` whose value differs from the default is reported in an "outdated settings" dialog
+7. Any key in `outdatedWarnKeys` whose value differs from the default is reported in an "outdated" dialog
 
-### 3. Declaring setting items
+#### 2.1 Declaring setting items
 
 ```ts
 import { ConfigProperty, TabProperty } from "siyuan-plugin-uni-helper/settings";
@@ -151,7 +149,7 @@ import { ConfigProperty, TabProperty } from "siyuan-plugin-uni-helper/settings";
 const tabProperties = [
     new TabProperty({
         key: "appearance",             // tab key → i18n key settingpage_appearance_name
-        iconKey: "iconTheme",
+        iconKey: "iconTheme",           // tab icon key
         showColumnAsGroup: true,       // render columns as groups (kernel >= 3.7.0)
         props: {                        // an array is also accepted for a single column
             css: [
@@ -165,21 +163,33 @@ const tabProperties = [
 ];
 ```
 
-Built-in types: `SELECT` / `TEXT` / `NUMBER` / `BUTTON` / `TEXTAREA` / `SWITCH` / `ORDER` / `PATH` / `TIPS` / `CUSTOM`. Custom type names are allowed too (e.g. `CUSTOM_NOTEBOOK`, used together with `component`).
+Built-in types:
+
+- `SELECT`  dropdown
+- `TEXT` string
+- `NUMBER`  number
+- `BUTTON`  button
+- `TEXTAREA` textarea
+- `SWITCH` toggle
+- `ORDER` ordering
+- `PATH` local path picker
+- `TIPS` tip block
+- `CUSTOM` custom block, pass in a Vue component
+- `……` Custom type names are allowed too (e.g. `CUSTOM_NOTEBOOK`, used together with `component`).
 
 Common `ConfigProperty` fields:
 
 | Field | Description |
 | --- | --- |
-| `key` | Setting key; also determines the i18n key names (see "i18n conventions") |
+| `key` | Setting key; also determines the i18n key names (see "i18n" conventions) |
 | `type` | Type |
 | `min` / `max` | Range for `NUMBER` |
 | `options` | Option keys for `SELECT` / `ORDER`; array order is display order |
 | `optionSameAsSettingKey` | Reuse another item's option texts (still pass `options`) |
 | `btndo` | Callback for `BUTTON` |
-| `component` / `control` / `componentProps` | Three levels of custom components (below) |
+| `component` / `control` / `componentProps` | Three levels of custom components (see below) |
 
-### 4. Three levels of custom Vue components
+#### 2.2 Adding custom Vue components to the settings page
 
 Custom components all receive the props below, write values back through `update:modelValue`, and may call `getGSettings()` to read/write other settings:
 
@@ -205,19 +215,68 @@ new ConfigProperty({ key: "customSwitch", type: "SWITCH", control: MySwitchContr
 
 Pass extra parameters with `componentProps`: `new ConfigProperty({ key: "xxx", type: "CUSTOM", component: Foo, componentProps: { filter: "A" } })`.
 
-The package deliberately does **not** provide a global "custom type name → component" registry; components are always referenced explicitly.
+The package deliberately does **not** provide a global "custom type name → component" registry; components are always referenced explicitly, to avoid implicit coupling.
 
-### 5. Opening the settings panel
+#### 2.3 Filling in the i18n files
+
+Settings page i18n key naming conventions:
+
+| Purpose | Key form | Required |
+| --- | --- | --- |
+| Item name | `setting_{key}_name` | Yes |
+| Item description | `setting_{key}_desp` | Yes |
+| Button label (`BUTTON`) | `setting_{key}_btn` | Yes for `BUTTON` |
+| Option display name | `setting_{key}_option_{optionKey}` | Yes for `SELECT` / `ORDER` |
+| Option description | `setting_{key}_option_{optionKey}_desp` | Optional |
+| Tab name | `settingpage_{tabKey}_name` | Yes |
+| Column name | `setting_column_{columnKey}_name` | Recommended for multi-column |
+| Panel title | `setting_panel_title` | Yes (not provided by the framework) |
+| Message prefix | `dialog_panel_plugin_name` | Yes (appended by `showPluginMessage`) |
+| Outdated dialog title | `dialog_panel_outdate` | Recommended when using `outdatedWarnKeys` |
+
+Two notes:
+
+- For a single column (array form) the column name is `setting_column_none_name`, built in as "通用 / General"
+- Option texts can be reused from another item via `optionSameAsSettingKey`; in that case `setting_{reusedKey}_option_*` is read
+
+#### 2.4 Item status markers (experimental / testing / deprecated)
+
+**The marker is written as the first character of the item name** (`setting_{key}_name`). When constructing a `ConfigProperty`, the package reads the leading character of the name and prepends the matching notice to the description:
+
+| Name prefix | Meaning | Prepended to description | Example string |
+| --- | --- | --- | --- |
+| 🧪 | Experimental | `setting_experimental` → "【实验性功能】" / "[Experimental]" | `setting_newFeature_name: "🧪New feature"` |
+| ✈ | Testing / preview | `setting_testing` → "【测试功能】" / "[Testing]" | `setting_betaFeature_name: "✈Beta feature"` |
+| ❌ | Deprecated | `setting_deprecated` → "【已废弃】" / "[Deprecated]" | `setting_oldFeature_name: "❌Legacy toggle"` |
+
+Conventions and usage:
+
+- Add the prefix to the **name** only; do not repeat the wording in the description — the package prepends it automatically for both zh_CN and en_US
+- The prefix must be the **first character** of the name; the same character in the middle or at the end is ignored
+- Only one status applies per item, evaluated in the order 🧪 → ✈ → ❌ (first match wins)
+- The marker is **display only** (name + description prefix) and **changes nothing logically**: whether an experimental feature needs an extra switch or should be hidden is decided by the plugin itself in `customValidate` or in business code
+- To override the notice text, provide the same key in the plugin i18n (e.g. `setting_experimental: "【Preview】"`); plugin strings win
+
+#### 2.5 Opening the settings panel
+
+unihelper does not hook up the plugin's "open settings" entry on its own; handle it yourself in `Plugin.openSetting()`.
 
 ```ts
-openSetting();                                    // default size
+openSetting();                                   // default size
 openSetting({ width: "1040px", height: "80vh" }); // custom size
 openSetting({ title: lang("setting_panel_title") });
 ```
 
 Internally: UUID → `createApp(SettingPanel)` → `siyuan.Dialog` → mount → `app.unmount()` in `destroyCallback`. Default size is `92vw / 50vw` on mobile and `1040px / 80vh` on desktop.
 
-### 6. SiYuan API
+#### 2.6 Checklist for a new setting item
+
+1. Add `setting_{key}_name` / `setting_{key}_desp` to the i18n files (plus option/button keys as needed)
+2. Add the default value to `defaultSetting`, with a type matching `ConfigProperty.type`
+3. Bump `currentVersion` and write `onVersionUpgrade()` when a migration is needed
+4. Prefix the `_name` with 🧪 / ✈ / ❌ to label it experimental / testing / deprecated in the UI
+
+### 3. SiYuan API
 
 ```ts
 import { getNodebookList, getCurrentDocIdF, isMobile } from "siyuan-plugin-uni-helper/api";
@@ -226,10 +285,11 @@ import { setTokenProvider } from "siyuan-plugin-uni-helper/api/token";
 import * as CONSTANTS from "siyuan-plugin-uni-helper/api/apiConstants";
 ```
 
-- The whole `syapi` suite is moved over **as-is**: no wrappers, no `@SyVersion`, request semantics and return structures unchanged
-- The host-side `src/utils/common.ts` was not moved; the `getToken()` it depended on lives in `api/token.ts` and you can inject a real implementation with `setTokenProvider(fn)`. Without injection it still returns `""` (historical behavior)
+- `syapi` was moved over from the Hierarchy Navigate plugin
 
-### 7. `@SyVersion` version guard
+### 4. `@SyVersion` version limit and check
+
+By registering this annotation on a function, the version is checked automatically before the function is called, and an error is thrown in the configured way.
 
 The version source is `window.siyuan.config.system.kernelVersion`; comparison semantics match `isCurrentVersionLessThan`, and the parsed result is cached at module level.
 
@@ -250,17 +310,17 @@ function legacy() {
     checkSyVersion({ min: "3.1.0" });
 }
 
-// Global downgrade: warn or ignore instead of throwing (default is throw)
+// How to report after a failed check; default is throw
 setSyVersionCheckMode("warn");
 ```
 
 `SyVersionRange` supports `min` / `max` / `mode` (overrides the global mode) / `name` (function name shown in the message).
 
-### 8. i18n conventions (important)
+### 5. i18n
 
-The language layer does exactly three things: **plugin strings first, framework strings as fallback, the key itself last**. A missing key never throws — it renders the raw key, which makes forgotten translations visible immediately.
+`lang()` follows **plugin strings first, framework strings as fallback, the key itself last**.
 
-#### 8.1 Three-tier fallback
+A missing key simply renders the key itself, so if you forget to add the string for a new setting item, the raw key is exposed in the UI.
 
 ```ts
 import { lang, mergeI18n, setLanguage } from "siyuan-plugin-uni-helper/core";
@@ -273,47 +333,7 @@ lang("setting_search_placeholder");
 mergeI18n(plugin.i18n); // when you need the merged map to hand to other UI
 ```
 
-`settingLang(key)` returns the `[name, desp, btnName]` triple (matching `_name` / `_desp` / `_btn`); `settingPageLang(key)` returns `[pageName]` (matching `settingpage_{key}_name`).
-
-#### 8.2 Key naming conventions
-
-| Purpose | Key form | Required |
-| --- | --- | --- |
-| Item name | `setting_{key}_name` | Yes |
-| Item description | `setting_{key}_desp` | Yes |
-| Button label (`BUTTON`) | `setting_{key}_btn` | Yes for `BUTTON` |
-| Option display name | `setting_{key}_option_{optionKey}` | Yes for `SELECT` / `ORDER` |
-| Option description | `setting_{key}_option_{optionKey}_desp` | Optional |
-| Tab name | `settingpage_{tabKey}_name` | Yes |
-| Column name | `setting_column_{columnKey}_name` | Recommended for multi-column |
-| Panel title | `setting_panel_title` | Yes (not provided by the framework) |
-| Message prefix | `dialog_panel_plugin_name` | Yes (`showPluginMessage` appends it) |
-| Outdated dialog title | `dialog_panel_outdate` | Recommended when using `outdatedWarnKeys` |
-
-Two notes:
-
-- For a single column (array form) the column name is `setting_column_none_name`, built in as "通用 / General"
-- Option texts can be reused from another item via `optionSameAsSettingKey`; in that case `setting_{reusedKey}_option_*` is read
-
-#### 8.3 Item status markers (experimental / testing / deprecated)
-
-**The marker is the first character of the item name** (`setting_{key}_name`). When constructing a `ConfigProperty`, the package reads the leading character and prepends the matching notice to the description:
-
-| Name prefix | Meaning | Prepended to description | Example string |
-| --- | --- | --- | --- |
-| 🧪 | Experimental | `setting_experimental` → "[Experimental]" | `setting_newFeature_name: "🧪New feature"` |
-| ✈ | Testing / preview | `setting_testing` → "[Testing]" | `setting_betaFeature_name: "✈Beta feature"` |
-| ❌ | Deprecated | `setting_deprecated` → "[Deprecated]" | `setting_oldFeature_name: "❌Legacy toggle"` |
-
-Conventions:
-
-- Add the prefix to the **name** only; do not repeat the wording in the description — the package prepends it automatically for both zh_CN and en_US
-- The prefix must be the **first character** of the name; the same character elsewhere is ignored
-- Only one status applies per item, evaluated in the order 🧪 → ✈ → ❌
-- The marker is **display only**: it changes nothing logically. Whether an experimental feature needs an extra switch or should be hidden is decided by the plugin itself in `customValidate` or in business code
-- Override the wording by providing the same key in the plugin i18n (e.g. `setting_experimental: "[Preview]"`); plugin strings win
-
-#### 8.4 Built-in framework strings
+#### 5.1 Built-in framework strings
 
 | key | zh_CN | en_US |
 | --- | --- | --- |
@@ -334,16 +354,9 @@ Conventions:
 
 Search matches the combined "name + description" text (whitespace tokenized, AND matching), so writing aliases/keywords into the description noticeably improves discoverability.
 
-#### 8.5 Checklist for a new setting item
+### 6. Logger conventions
 
-1. Add `setting_{key}_name` / `setting_{key}_desp` to the i18n files (plus option/button keys as needed)
-2. Add the default value to `defaultSetting`, with a type matching `ConfigProperty.type`
-3. Bump `currentVersion` and write `onVersionUpgrade()` when a migration is needed
-4. Prefix the `_name` with 🧪 / ✈ / ❌ to label it experimental / testing / deprecated in the UI
-
-### 9. Logger conventions (important)
-
-Use the leveled logger instead of `console.log` directly, so output can be silenced by the debug switch — mixing raw `console` calls from many plugins makes the SiYuan console unusable.
+The package provides a leveled logger. Do not call `console.log` directly in a plugin; always use the `*Push` functions so that output can be unified under the debug switch (it is extremely hard to locate anything when many plugins mix raw `console` calls in the SiYuan console).
 
 ```ts
 import { debugPush, infoPush, logPush, warnPush, errorPush, isDebugMode } from "siyuan-plugin-uni-helper/core";
@@ -359,14 +372,14 @@ errorPush("error", err);                          // LEVEL 1, stack trace when t
 | --- | --- |
 | 0 | Silence everything |
 | 1 | Error only |
-| 2 | Error + Warn (**default**) |
+| 2 | Error + Warn (**default level**) |
 | 3 | + Info |
 | 4 | + Log |
 | 5 | + Debug |
 
 Output format is `pluginFullName[levelLetter] time message`, where the level letter is `D` / `I` / `L` / `W` / `E`.
 
-#### Turning on debug output
+#### 6.1 Turning on debug output
 
 The level is read from `window.top.OpaqueGlassDebugV2`, keyed by the registered `shortName` (overridable with `debugKey`); `*` is a wildcard key:
 
@@ -378,16 +391,16 @@ window.top.OpaqueGlassDebugV2 = { "*": 5 };  // everything
 
 When the plugin's own debug switch (`debugSwitchKey`, default `debugMode`) is turned on, the engine writes the key above with level 5 and also sets `window.top.OpaqueGlassDebug = true` (the legacy global switch, kept for compatibility).
 
-Priority: specific key > `*` > the `defaultLevel` given at registration (default 2). `isDebugMode()` tells whether the current level exceeds the default.
+Priority: specific key > `*` > the `defaultLevel` given at registration (default 2). `isDebugMode()` tells whether the current level is higher than the default.
 
-#### Conventions
+#### 6.2 Conventions
 
 - Level and default level are set through `registerPlugin({ defaultLevel, traceOnError })`; do not re-implement a logger in business code
-- `debugPush` is for fine-grained troubleshooting; **never put it inside hot loops or per-observer callbacks** — arguments are still evaluated even when debug output is off
+- `debugPush` is for fine-grained troubleshooting; **never put it inside hot loops or per-observer callbacks** — argument serialization still costs even when debug output is off
 - User-facing notices go through `showPluginMessage(message, timeout?, type?)`, not through the logger
-- Any leftover `console.*` call should be treated as debt to clean up
+- Any `console.*` call not covered by `*Push` should be treated as debt to clean up
 
-### 10. Other core utilities
+### 7. Other utilities
 
 ```ts
 import {
@@ -399,7 +412,7 @@ import {
 } from "siyuan-plugin-uni-helper/core";
 ```
 
-`buildDomId(scene, uid)` produces `${styleIdPrefix}_${scene}_${uid}` temp DOM ids so multiple plugins never collide.
+`buildDomId(scene, uid)` produces `${styleIdPrefix}_${scene}_${uid}` temp DOM ids so multiple plugins never pollute each other.
 
 ### Migration map from the old template
 
@@ -415,13 +428,13 @@ import {
 | `src/syapi/apiConstants.ts` | `siyuan-plugin-uni-helper/api/apiConstants` |
 | `src/utils/settings.ts` | `siyuan-plugin-uni-helper/settings` |
 | `src/manager/settingManager.ts` | `createSettingManager(...)` + plugin-side config |
-| `src/components/settings/*.vue` | `siyuan-plugin-uni-helper/vue` (or `./vue/*` for individual files) |
+| `src/components/settings/*.vue` | `siyuan-plugin-uni-helper/vue` (`./vue/*` also works if you only need specific files) |
 | `getToken` in `src/utils/common.ts` | `siyuan-plugin-uni-helper/api/token` |
 | `generateUUID` / `showPluginMessage` in `src/utils/common.ts` | `siyuan-plugin-uni-helper/core` |
 
 Migration notes:
 
-- The `window.top["OpaqueGlassDebugV2"]` key now comes from `shortName` (the old template used `CONSTANTS.PLUGIN_SHORT_NAME`). Pass `registerPlugin({ debugKey: "oldKey" })` to keep the previous key
+- The `window.top["OpaqueGlassDebugV2"]` key now comes from `shortName` (the old template used `CONSTANTS.PLUGIN_SHORT_NAME`). If the previous key was different, pass `registerPlugin({ debugKey: "oldKey" })` explicitly to keep it unchanged
 - Plugin-specific initialization logic such as `initSettingProperty()` stays in the plugin; the package only owns the generic flow
 
 ---
@@ -433,7 +446,7 @@ Migration notes:
 ```
 src/
 ├── core/                       # base layer, one-way decoupled from the plugin instance
-│   ├── context.ts              # PluginContext: the single decoupling point
+│   ├── context.ts              # PluginContext: the only decoupling point between package and plugin
 │   ├── register.ts             # registerPlugin: instance + logger + language pack in one shot
 │   ├── logger.ts               # leveled logger, debug key and level resolution
 │   ├── lang.ts + i18n/         # three-tier lang fallback, mergeI18n, settingLang/settingPageLang, framework strings
@@ -458,10 +471,10 @@ src/
 ### Main design decisions
 
 1. **One-way dependency**: `core` never imports plugin code; the instance is injected only through `PluginContext`. Anything needing the instance goes through `usePluginContext()`, which throws when unregistered
-2. **Shipped as source**: `src` is published (SFCs and JSON included) and the host's Vite compiles it, so no build-time coupling. The cost is the mandatory `plugin-vue` `include` on the consumer side
+2. **Shipped as source**: `src` is published (SFCs and JSON included) and the host's Vite compiles it, so the package itself introduces no build-time coupling. The cost is the mandatory `plugin-vue` `include` on the consumer side
 3. **Single Vue instance**: bundled components share the host's Vue; consumers need `resolve.dedupe: ["vue"]`
-4. **Engine vs business separation**: type correction, debounce, persistence and debug sync live in the package; legacy migration and business validation stay in the plugin via the `transferOld` / `onVersionUpgrade` / `customValidate` callbacks
-5. **Storage format is frozen**: file name, `@version` semantics and JSON indentation match the old template exactly, so upgrading never invalidates user settings
+4. **Engine vs business separation**: type correction, debounce, persistence and debug sync live in the package; legacy migration and business validation/clamping stay in the plugin via the `transferOld` / `onVersionUpgrade` / `customValidate` callbacks
+5. **Storage format is frozen**: file name, `@version` semantics and JSON indentation match the old template exactly, so upgrading never invalidates a user's settings
 6. **i18n only fills gaps**: plugin strings always win, framework strings cover only what the UI needs, and missing keys fall back to the key itself so problems are visible
 
 ### Local development
@@ -492,32 +505,12 @@ When referencing a local checkout from a plugin repository, prefer the `link:` p
 - `files` publishes only `src` and `dist/types`; run `npm run build` first to emit the declarations
 - Follow semver; when changing persistence or type-correction behavior of the settings engine, describe the impact on consumers in the changelog / commit message
 
-### vite 6 companion versions
-
-Versions verified together with vite `^6.4.3` (peers / engines checked; Node `^20.19.0 || >=22.12.0` required):
-
-| Dependency | Version | Notes |
-| --- | --- | --- |
-| `vite` | `^6.4.3` | Node >= 20.19 |
-| `@vitejs/plugin-vue` | `^6.0.9` | peer `vite ^5 \|\| ^6 \|\| ^7 \|\| ^8` |
-| `vite-plugin-static-copy` | `^4.1.1` | peer `vite ^6 \|\| ^7 \|\| ^8` |
-| `vite-plugin-zip-pack` | `^1.2.4` | peer `vite >=2.x` |
-| `rollup-plugin-livereload` | `^2.0.5` | plain rollup plugin; verify refresh behavior under `vite build --watch` |
-
-Other notes:
-
-- Do not inject the whole `process.env` into `define` under vite 6 (it warns and leaks environment variables). Inject only the fields you use, and **include `process.env.NODE_ENV`** — otherwise Vue keeps a runtime check and its dev branch ends up in the bundle (larger output plus `[Vue warn]` messages)
-- `resolve.dedupe: ["vue"]` and the SFC `include` syntax are unchanged in vite 6
-
 ---
 
 ## References and credits
 
-- [SiYuan](https://github.com/siyuan-note/siyuan) — all API wrappers and the settings panel styling are built on its plugin system
-- The [`siyuan`](https://www.npmjs.com/package/siyuan) type package and the official plugin development docs
-- Declarative setting registration, the settings panel UI and the `syapi` wrappers follow conventions established in the OpaqueGlass plugin family; thanks to their author for open-sourcing that work
-- The pilot plugin repositories (such as Hierarchy Navigate) for real migration feedback
+- [SiYuan 思源笔记](https://github.com/siyuan-note/siyuan)
 
 ## License
 
-MIT. Downstream repositories may use any license (including AGPL-3.0); this package does not restrict its callers.
+MIT

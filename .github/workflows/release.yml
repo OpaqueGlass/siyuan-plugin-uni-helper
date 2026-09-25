@@ -1,0 +1,65 @@
+name: Create Release on Tag Push
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      # Install Node.js
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+          cache: "pnpm"
+
+      - name: Update npm
+        run: npm install -g npm@latest
+
+      - name: Setup pnpm
+        run: npm i -g pnpm
+
+      # Install dependencies
+      - name: Install dependencies
+        run: pnpm install
+
+      # Build for production
+      - name: Build for production
+        run: pnpm build
+
+      # Package as zip file
+      - name: Zip it
+        run: zip -r dist.zip dist/
+
+      # Get changelog
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      - name: Get CHANGELOGS
+        run: python ./scripts/release_note.py
+      
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: ./result.txt
+          prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') || contains(github.ref, 'dev') }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          files: dist.zip
+
+      - name: publish on npm
+        if: ${{ ! (contains(github.ref, 'beta') || contains(github.ref, 'alpha') || contains(github.ref, 'dev')) }}
+        run: npm publish --provenance
