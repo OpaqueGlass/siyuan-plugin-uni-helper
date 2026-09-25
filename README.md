@@ -109,7 +109,9 @@ const manager = createSettingManager({
     currentVersion: 20260301,            // 原 @version 语义
     tabs: () => tabProperties,           // 可传数组或懒加载函数
     transferOld: transferOldSetting,     // 插件专属旧版迁移
+    onVersionUpgrade: migrateV20260808,  // @version 落后时触发的插件专属迁移
     customValidate: checkBusinessRule,   // 插件专属校验/钳制
+    zeroToMaxKeys: ["docMaxNum"],        // 填 0 表示不限制、回退到 max 的数值项
     onChanged: (settings) => { /* 应用样式、通知业务模块等 */ },
     debugSwitchKey: "debugMode",         // 调试开关键名，缺省即 debugMode
 });

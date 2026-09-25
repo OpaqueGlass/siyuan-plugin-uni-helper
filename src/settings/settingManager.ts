@@ -15,6 +15,7 @@ import OutdatedSettingVue from "../vue/dialog/outdatedSetting.vue";
 
 const DEFAULT_STORAGE_FILE = "settings_main.json";
 const DEFAULT_DEBUG_SWITCH_KEY = "debugMode";
+const DEFAULT_ZERO_TO_MAX_KEYS = ["docMaxNum"];
 const SAVE_DEBOUNCE_MILLISECONDS = 400;
 
 export interface CreateSettingManagerOptions {
@@ -27,12 +28,16 @@ export interface CreateSettingManagerOptions {
     tabs: Array<TabProperty> | (() => Array<TabProperty>);
     /** 插件专属旧版设置迁移 */
     transferOld?: () => Promise<any | null>;
+    /** @version 低于 currentVersion 时触发的插件专属迁移 */
+    onVersionUpgrade?: (loadResult: any) => void | Promise<void>;
     /** 插件专属校验/钳制钩子，返回修正后的设置对象 */
     customValidate?: (input: any, defaultSetting: Record<string, any>) => any;
     /** 设置变更并落盘后的回调 */
     onChanged?: (settings: any) => void;
     /** 调试开关键名，缺省 debugMode */
     debugSwitchKey?: string;
+    /** 数值设置项填 0 表示「不限制」时需要回退到 max 的 key，缺省 ["docMaxNum"] */
+    zeroToMaxKeys?: Array<string>;
     /** 需要提示「已过时」的设置项 key，缺省不提示 */
     outdatedWarnKeys?: Array<string>;
 }
@@ -82,6 +87,7 @@ export function saveSettings(newSettings: any): void {
 export function createSettingManager(options: CreateSettingManagerOptions): SettingManager {
     const storageFile = options.storageFile ?? DEFAULT_STORAGE_FILE;
     const debugSwitchKey = options.debugSwitchKey ?? DEFAULT_DEBUG_SWITCH_KEY;
+    const zeroToMaxKeys = options.zeroToMaxKeys ?? DEFAULT_ZERO_TO_MAX_KEYS;
     const setting = ref({});
     let updateTimeout: any = null;
 
@@ -130,7 +136,7 @@ export function createSettingManager(options: CreateSettingManagerOptions): Sett
             else if (prop.type === "NUMBER") {
                 if (isValidStr(currentValue)) {
                     let num = parseFloat(currentValue);
-                    if (key === "docMaxNum" && num === 0) {
+                    if (num === 0 && zeroToMaxKeys.includes(key)) {
                         num = prop.max;
                     }
                     if (prop.min !== undefined && num < prop.min) {
@@ -223,8 +229,13 @@ export function createSettingManager(options: CreateSettingManagerOptions): Sett
                 loadResult = options.defaultSetting;
             }
         }
+        let versionUpgraded = false;
         if (!loadResult["@version"] || loadResult["@version"] < options.currentVersion) {
             loadResult["@version"] = options.currentVersion;
+            versionUpgraded = true;
+            if (options.onVersionUpgrade != null) {
+                await options.onVersionUpgrade(loadResult);
+            }
         }
         try {
             loadResult = checkSettingType(loadResult);
@@ -264,6 +275,9 @@ export function createSettingManager(options: CreateSettingManagerOptions): Sett
 
         changeDebug(setting.value);
         options.onChanged?.(setting.value);
+        if (versionUpgraded) {
+            saveSettings(setting.value);
+        }
         showOutdatedSettingWarnDialog(checkOutdatedSettings(setting.value));
     }
 
