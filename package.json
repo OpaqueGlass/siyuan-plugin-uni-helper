@@ -1,0 +1,86 @@
+{
+  "name": "siyuan-plugin-uni-helper",
+  "version": "0.1.0",
+  "description": "思源笔记插件通用工具包：设置面板框架、思源 API 封装、常用工具与内核版本守卫",
+  "type": "module",
+  "author": "OpaqueGlass",
+  "license": "MIT",
+  "keywords": [
+    "siyuan",
+    "siyuan-plugin",
+    "plugin",
+    "settings",
+    "vue"
+  ],
+  "files": [
+    "src",
+    "dist/types"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./core": {
+      "types": "./dist/types/core/index.d.ts",
+      "import": "./src/core/index.ts",
+      "default": "./src/core/index.ts"
+    },
+    "./api": {
+      "types": "./dist/types/api/index.d.ts",
+      "import": "./src/api/index.ts",
+      "default": "./src/api/index.ts"
+    },
+    "./api/custom": {
+      "types": "./dist/types/api/custom.d.ts",
+      "import": "./src/api/custom.ts",
+      "default": "./src/api/custom.ts"
+    },
+    "./api/token": {
+      "types": "./dist/types/api/token.d.ts",
+      "import": "./src/api/token.ts",
+      "default": "./src/api/token.ts"
+    },
+    "./api/apiConstants": {
+      "types": "./dist/types/api/apiConstants.d.ts",
+      "import": "./src/api/apiConstants.ts",
+      "default": "./src/api/apiConstants.ts"
+    },
+    "./settings": {
+      "types": "./dist/types/settings/index.d.ts",
+      "import": "./src/settings/index.ts",
+      "default": "./src/settings/index.ts"
+    },
+    "./vue": {
+      "types": "./dist/types/vue/index.d.ts",
+      "import": "./src/vue/index.ts",
+      "default": "./src/vue/index.ts"
+    },
+    "./vue/*": "./src/vue/*"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit"
+  },
+  "peerDependencies": {
+    "siyuan": "^1.0.6",
+    "sortablejs": "^1.15.2",
+    "vue": "^3.4.15"
+  },
+  "peerDependenciesMeta": {
+    "sortablejs": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.6.2",
+    "@types/sortablejs": "^1.15.8",
+    "@vitejs/plugin-vue": "^6.0.9",
+    "siyuan": "^1.0.6",
+    "sortablejs": "^1.15.2",
+    "typescript": "^5.2.2",
+    "vite": "^6.4.3",
+    "vue": "^3.4.15"
+  }
+}
