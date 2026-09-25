@@ -18,8 +18,20 @@ import { isNotebookDocEnabled, isNotebookDoc, getListDocsByPathAPIFilePath } fro
 import { generateUUID } from "./uuid";
 import { showPluginMessage } from "./message";
 import { setPluginInstance, getPluginInstance } from "./getInstance";
+import {
+    SyVersion,
+    checkSyVersion,
+    isKernelVersionInRange,
+    getKernelVersion,
+    clearKernelVersionCache,
+    setSyVersionCheckMode,
+    getSyVersionCheckMode,
+    SyVersionRange,
+    SyVersionCheckMode,
+} from "./version";
 
 export type { PluginContext };
+export type { SyVersionRange, SyVersionCheckMode };
 
 export {
     debugPush,
@@ -55,4 +67,11 @@ export {
     showPluginMessage,
     setPluginInstance,
     getPluginInstance,
+    SyVersion,
+    checkSyVersion,
+    isKernelVersionInRange,
+    getKernelVersion,
+    clearKernelVersionCache,
+    setSyVersionCheckMode,
+    getSyVersionCheckMode,
 };
